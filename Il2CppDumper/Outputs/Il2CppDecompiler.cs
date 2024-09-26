@@ -520,10 +520,10 @@ namespace Il2CppDumper
                         //dump field
                         if (config.DumpField && typeDef.field_count > 0)
                         {
-                            var field = new Field();
                             var fieldEnd = typeDef.fieldStart + typeDef.field_count;
                             for (var i = typeDef.fieldStart; i < fieldEnd; ++i)
                             {
+                                var field = new Field();
                                 var fieldDef = metadata.fieldDefs[i];
                                 var fieldType = il2Cpp.types[fieldDef.typeIndex];
                                 var isStatic = false;
@@ -533,6 +533,7 @@ namespace Il2CppDumper
                                     field.Attributes = GetCustomAttribute(imageDef, fieldDef.customAttributeIndex,
                                         fieldDef.token, "\t");
                                 }
+
                                 var access = fieldType.attrs & FIELD_ATTRIBUTE_FIELD_ACCESS_MASK;
                                 switch (access)
                                 {
@@ -609,8 +610,8 @@ namespace Il2CppDumper
                                     field.Offset = il2Cpp.GetFieldOffsetFromIndex(typeDefIndex, i - typeDef.fieldStart,
                                         i, typeDef.IsValueType, isStatic);
                                 }
+                                typedObject.Fields.Add(field);
                             }
-                            typedObject.Fields.Add(field);
                         }
                         //dump property
                         /*
