@@ -53,19 +53,18 @@ public class Method
     public string Modifiers { get; set; }
     public string ReturnType { get; set; }
     public string Name { get; set; }
-    public List<MethodParameter> Parameters { get; set; }
+    public List<MethodParameter> Parameters { get; set; } = new();
     public ulong RVA { get; set; }
     public ulong Offset { get; set; }
     public ulong VA { get; set; }
     public int Slot { get; set; }
     public bool IsAbstract { get; set; } = false;
-    public List<GenericInstanceMethod> GenericInstances { get; set; }
+    public List<GenericInstanceMethod> GenericInstances { get; set; } = new();
 }
 
 public class MethodParameter
 {
     public string Keyword { get; set; }
-    public List<string> Attrs { get; set; }
     public string TypeName { get; set; }
     public string Name { get; set; }
     public string DefaultValue { get; set; }
@@ -794,7 +793,6 @@ namespace Il2CppDumper
 
                                 if (il2Cpp.methodDefinitionMethodSpecs.TryGetValue(i, out var methodSpecs))
                                 {
-                                    writer.Write("\t/* GenericInstMethod :\n");
                                     var groups = methodSpecs.GroupBy(x => il2Cpp.methodSpecGenericMethodPointers[x]);
                                     foreach (var group in groups)
                                     {
@@ -819,7 +817,6 @@ namespace Il2CppDumper
                             }
                         }
                         image.TypedObjects.Add(typedObject);
-                        //writer.Write(JsonSerializer.Serialize(typedObject));
                     }
                     images.Add(image);
                 }
