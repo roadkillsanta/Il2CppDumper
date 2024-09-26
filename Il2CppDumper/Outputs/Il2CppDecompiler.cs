@@ -436,12 +436,6 @@ namespace Il2CppDumper
         public void Decompile(Config config, string outputDir)
         {
             var writer = new StreamWriter(new FileStream(outputDir + "dump.json", FileMode.Create), new UTF8Encoding(false));
-            //dump image
-            for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++)
-            {
-                var imageDef = metadata.imageDefs[imageIndex];
-                writer.Write($"// Image {imageIndex}: {metadata.GetStringFromIndex(imageDef.nameIndex)} - {imageDef.typeStart}\n");
-            }
 
             var images = new List<Image>();
             //dump type
@@ -807,7 +801,7 @@ namespace Il2CppDumper
                         image.TypedObjects.Add(typedObject);
                         //writer.Write(JsonSerializer.Serialize(typedObject));
                     }
-                    writer.Write(JsonSerializer.Serialize(image));
+                    images.Add(image);
                 }
                 catch (Exception e)
                 {
@@ -817,7 +811,7 @@ namespace Il2CppDumper
                     writer.Write("*/\n}\n");
                 }
             }
-            //writer.Write(JsonSerializer.Serialize(images.ToArray()));
+            writer.Write(JsonSerializer.Serialize(images));
 
             writer.Close();
         }
