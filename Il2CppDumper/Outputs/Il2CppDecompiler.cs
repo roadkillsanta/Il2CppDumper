@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design.Serialization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -23,6 +24,7 @@ public class TypedObject
     public string TypeName { get; set; }
     public List<Field> Fields { get; set; } = new();
     public List<Property> Properties { get; set; } = new();
+    public List<Method> Methods { get; set; } = new();
 }
 
 public class Field
@@ -40,6 +42,42 @@ public class Property
     public HashSet<string> Visibility { get; set; } = new();
     public string Type { get; set; }
     public string Name { get; set; }
+    public HashSet<string> Accessors { get; set; } = new();
+    public Method Get { get; set; } = new();
+    public Method Set { get; set; } = new();
+}
+
+public class Method
+{
+    public string Attributes { get; set; }
+    public string Modifiers { get; set; }
+    public string ReturnType { get; set; }
+    public string Name { get; set; }
+    public List<MethodParameter> Parameters { get; set; }
+    public ulong RVA { get; set; }
+    public ulong Offset { get; set; }
+    public ulong VA { get; set; }
+    public int Slot { get; set; }
+    public bool IsAbstract { get; set; } = false;
+    public List<GenericInstanceMethod> GenericInstances { get; set; }
+}
+
+public class MethodParameter
+{
+    public string Keyword { get; set; }
+    public List<string> Attrs { get; set; }
+    public string TypeName { get; set; }
+    public string Name { get; set; }
+    public string DefaultValue { get; set; }
+}
+
+public class GenericInstanceMethod
+{
+    public string ReturnType { get; set; }
+    public string Name { get; set; }
+    public ulong RVA { get; set; }
+    public ulong Offset { get; set; }
+    public ulong VA { get; set; }
 }
 
 namespace Il2CppDumper
@@ -614,162 +652,144 @@ namespace Il2CppDumper
                             }
                         }
                         //dump property
-                        /*
                         if (config.DumpProperty && typeDef.property_count > 0)
                         {
-                            writer.Write("\n\t// Properties\n");
                             var propertyEnd = typeDef.propertyStart + typeDef.property_count;
                             for (var i = typeDef.propertyStart; i < propertyEnd; ++i)
                             {
+                                var property = new Property();
                                 var propertyDef = metadata.propertyDefs[i];
                                 if (config.DumpAttribute)
                                 {
-                                    writer.Write(GetCustomAttribute(imageDef, propertyDef.customAttributeIndex, propertyDef.token, "\t"));
+                                    property.Attributes = GetCustomAttribute(imageDef, propertyDef.customAttributeIndex, propertyDef.token, "\t");
                                 }
-                                writer.Write("\t");
                                 if (propertyDef.get >= 0)
                                 {
                                     var methodDef = metadata.methodDefs[typeDef.methodStart + propertyDef.get];
-                                    writer.Write(GetModifiers(methodDef));
+                                    property.Get.Modifiers = GetModifiers(methodDef);
                                     var propertyType = il2Cpp.types[methodDef.returnType];
-                                    writer.Write($"{executor.GetTypeName(propertyType, false, false)} {metadata.GetStringFromIndex(propertyDef.nameIndex)} {{ ");
+                                    property.Get.ReturnType = executor.GetTypeName(propertyType, false, false);
+                                    property.Get.Name = metadata.GetStringFromIndex(propertyDef.nameIndex);
                                 }
                                 else if (propertyDef.set >= 0)
                                 {
                                     var methodDef = metadata.methodDefs[typeDef.methodStart + propertyDef.set];
-                                    writer.Write(GetModifiers(methodDef));
+                                    property.Set.Modifiers = GetModifiers(methodDef);
                                     var parameterDef = metadata.parameterDefs[methodDef.parameterStart];
                                     var propertyType = il2Cpp.types[parameterDef.typeIndex];
-                                    writer.Write($"{executor.GetTypeName(propertyType, false, false)} {metadata.GetStringFromIndex(propertyDef.nameIndex)} {{ ");
+                                    property.Set.ReturnType = executor.GetTypeName(propertyType, false, false);
+                                    property.Set.Name = metadata.GetStringFromIndex(propertyDef.nameIndex);
                                 }
+
                                 if (propertyDef.get >= 0)
-                                    writer.Write("get; ");
+                                    property.Accessors.Add("get");
                                 if (propertyDef.set >= 0)
-                                    writer.Write("set; ");
-                                writer.Write("}");
-                                writer.Write("\n");
+                                    property.Accessors.Add("set");
+                                typedObject.Properties.Add(property);
                             }
                         }
-                        /*
                         //dump method
                         if (config.DumpMethod && typeDef.method_count > 0)
                         {
-                            writer.Write("\n\t// Methods\n");
                             var methodEnd = typeDef.methodStart + typeDef.method_count;
                             for (var i = typeDef.methodStart; i < methodEnd; ++i)
                             {
-                                writer.Write("\n");
+                                var method = new Method();
                                 var methodDef = metadata.methodDefs[i];
-                                var isAbstract = (methodDef.flags & METHOD_ATTRIBUTE_ABSTRACT) != 0;
+                                method.IsAbstract = (methodDef.flags & METHOD_ATTRIBUTE_ABSTRACT) != 0;
                                 if (config.DumpAttribute)
                                 {
-                                    writer.Write(GetCustomAttribute(imageDef, methodDef.customAttributeIndex, methodDef.token, "\t"));
+                                    method.Attributes = GetCustomAttribute(imageDef, methodDef.customAttributeIndex, methodDef.token, "\t");
                                 }
                                 if (config.DumpMethodOffset)
                                 {
                                     var methodPointer = il2Cpp.GetMethodPointer(image.Name, methodDef);
-                                    if (!isAbstract && methodPointer > 0)
+                                    if (!method.IsAbstract && methodPointer > 0)
                                     {
-                                        var fixedMethodPointer = il2Cpp.GetRVA(methodPointer);
-                                        writer.Write("\t// RVA: 0x{0:X} Offset: 0x{1:X} VA: 0x{2:X}", fixedMethodPointer, il2Cpp.MapVATR(methodPointer), methodPointer);
-                                    }
-                                    else
-                                    {
-                                        writer.Write("\t// RVA: -1 Offset: -1");
+                                        method.RVA = il2Cpp.GetRVA(methodPointer);
+                                        method.Offset = il2Cpp.MapVATR(methodPointer);
+                                        method.VA = methodPointer; 
                                     }
                                     if (methodDef.slot != ushort.MaxValue)
                                     {
-                                        writer.Write(" Slot: {0}", methodDef.slot);
+                                        method.Slot = methodDef.slot;
                                     }
-                                    writer.Write("\n");
                                 }
-                                writer.Write("\t");
-                                writer.Write(GetModifiers(methodDef));
+                                method.Modifiers = GetModifiers(methodDef);
                                 var methodReturnType = il2Cpp.types[methodDef.returnType];
-                                var methodName = metadata.GetStringFromIndex(methodDef.nameIndex);
+                                method.Name = metadata.GetStringFromIndex(methodDef.nameIndex);
                                 if (methodDef.genericContainerIndex >= 0)
                                 {
                                     var genericContainer = metadata.genericContainers[methodDef.genericContainerIndex];
-                                    methodName += executor.GetGenericContainerParams(genericContainer);
+                                    method.Name += executor.GetGenericContainerParams(genericContainer);
                                 }
                                 if (methodReturnType.byref == 1)
                                 {
-                                    writer.Write("ref ");
+                                    method.Attributes += " ref";
                                 }
-                                writer.Write($"{executor.GetTypeName(methodReturnType, false, false)} {methodName}(");
-                                var parameterStrs = new List<string>();
+
+                                method.ReturnType = executor.GetTypeName(methodReturnType, false, false);
                                 for (var j = 0; j < methodDef.parameterCount; ++j)
                                 {
-                                    var parameterStr = "";
+                                    var parameter = new MethodParameter();
                                     var parameterDef = metadata.parameterDefs[methodDef.parameterStart + j];
-                                    var parameterName = metadata.GetStringFromIndex(parameterDef.nameIndex);
                                     var parameterType = il2Cpp.types[parameterDef.typeIndex];
-                                    var parameterTypeName = executor.GetTypeName(parameterType, false, false);
+                                    parameter.TypeName = executor.GetTypeName(parameterType, false, false);;
+                                    parameter.Name = metadata.GetStringFromIndex(parameterDef.nameIndex);;
                                     if (parameterType.byref == 1)
                                     {
                                         if ((parameterType.attrs & PARAM_ATTRIBUTE_OUT) != 0 && (parameterType.attrs & PARAM_ATTRIBUTE_IN) == 0)
                                         {
-                                            parameterStr += "out ";
+                                            parameter.Keyword = "out";
                                         }
                                         else if ((parameterType.attrs & PARAM_ATTRIBUTE_OUT) == 0 && (parameterType.attrs & PARAM_ATTRIBUTE_IN) != 0)
                                         {
-                                            parameterStr += "in ";
+                                            parameter.Keyword = "in";
                                         }
                                         else
                                         {
-                                            parameterStr += "ref ";
+                                            parameter.Keyword = "ref";
                                         }
                                     }
                                     else
                                     {
                                         if ((parameterType.attrs & PARAM_ATTRIBUTE_IN) != 0)
                                         {
-                                            parameterStr += "[In] ";
+                                            parameter.Keyword = "[In]";
                                         }
                                         if ((parameterType.attrs & PARAM_ATTRIBUTE_OUT) != 0)
                                         {
-                                            parameterStr += "[Out] ";
+                                            parameter.Keyword = "[Out]";
                                         }
                                     }
-                                    parameterStr += $"{parameterTypeName} {parameterName}";
                                     if (metadata.GetParameterDefaultValueFromIndex(methodDef.parameterStart + j, out var parameterDefault) && parameterDefault.dataIndex != -1)
                                     {
                                         if (executor.TryGetDefaultValue(parameterDefault.typeIndex, parameterDefault.dataIndex, out var value))
                                         {
-                                            parameterStr += " = ";
                                             if (value is string str)
                                             {
-                                                parameterStr += $"\"{str.ToEscapedString()}\"";
+                                                parameter.DefaultValue = $"\"{str.ToEscapedString()}\"";
                                             }
                                             else if (value is char c)
                                             {
                                                 var v = (int)c;
-                                                parameterStr += $"'\\x{v:x}'";
+                                                parameter.DefaultValue += $"'\\x{v:x}'";
                                             }
                                             else if (value != null)
                                             {
-                                                parameterStr += $"{value}";
+                                                parameter.DefaultValue += $"{value}";
                                             }
                                             else
                                             {
-                                                writer.Write("null");
+                                                parameter.DefaultValue += "null";
                                             }
                                         }
                                         else
                                         {
-                                            parameterStr += $" /*Metadata offset 0x{value:X}*\/";
+                                            parameter.DefaultValue = $" /*Metadata offset 0x{value:X}*/";
                                         }
                                     }
-                                    parameterStrs.Add(parameterStr);
-                                }
-                                writer.Write(string.Join(", ", parameterStrs));
-                                if (isAbstract)
-                                {
-                                    writer.Write(");\n");
-                                }
-                                else
-                                {
-                                    writer.Write(") { }\n");
+                                    method.Parameters.Add(parameter);
                                 }
 
                                 if (il2Cpp.methodDefinitionMethodSpecs.TryGetValue(i, out var methodSpecs))
@@ -778,27 +798,26 @@ namespace Il2CppDumper
                                     var groups = methodSpecs.GroupBy(x => il2Cpp.methodSpecGenericMethodPointers[x]);
                                     foreach (var group in groups)
                                     {
-                                        writer.Write("\t|\n");
+                                        var genericInstanceMethod = new GenericInstanceMethod();
                                         var genericMethodPointer = group.Key;
                                         if (genericMethodPointer > 0)
                                         {
-                                            var fixedPointer = il2Cpp.GetRVA(genericMethodPointer);
-                                            writer.Write($"\t|-RVA: 0x{fixedPointer:X} Offset: 0x{il2Cpp.MapVATR(genericMethodPointer):X} VA: 0x{genericMethodPointer:X}\n");
-                                        }
-                                        else
-                                        {
-                                            writer.Write("\t|-RVA: -1 Offset: -1\n");
+                                            genericInstanceMethod.RVA = il2Cpp.GetRVA(genericMethodPointer);
+                                            genericInstanceMethod.Offset = il2Cpp.MapVATR(genericMethodPointer);
+                                            genericInstanceMethod.VA = genericMethodPointer;
                                         }
                                         foreach (var methodSpec in group)
                                         {
                                             (var methodSpecTypeName, var methodSpecMethodName) = executor.GetMethodSpecName(methodSpec);
-                                            writer.Write($"\t|-{methodSpecTypeName}.{methodSpecMethodName}\n");
+                                            genericInstanceMethod.ReturnType = methodSpecTypeName;
+                                            genericInstanceMethod.Name = methodSpecMethodName;
                                         }
+                                        method.GenericInstances.Add(genericInstanceMethod);
                                     }
-                                    writer.Write("\t*\/\n");
                                 }
+                                typedObject.Methods.Add(method);
                             }
-                        }*/
+                        }
                         image.TypedObjects.Add(typedObject);
                         //writer.Write(JsonSerializer.Serialize(typedObject));
                     }
