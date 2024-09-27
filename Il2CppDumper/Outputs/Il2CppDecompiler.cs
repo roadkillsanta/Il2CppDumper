@@ -96,7 +96,19 @@ namespace Il2CppDumper
             methodModifiers = new();
         }
 
-        public void DecompileToCS(Config config, string outputDir)
+        public void Decompile(Config config, string outputDir)
+        {
+            if (config.DumpToCs)
+            {
+                DecompileToCs(config, outputDir);
+            }
+
+            if (config.DumpToJson)
+            {
+                DecompileToJson(config, outputDir);
+            }
+        }
+        public void DecompileToCs(Config config, string outputDir)
         {
             var writer = new StreamWriter(new FileStream(outputDir + "dump.cs", FileMode.Create), new UTF8Encoding(false));
             //dump image
@@ -470,7 +482,7 @@ namespace Il2CppDumper
             writer.Close();
         }
 
-        public void Decompile(Config config, string outputDir)
+        public void DecompileToJson(Config config, string outputDir)
         {
             var writer = new StreamWriter(new FileStream(outputDir + "dump.json", FileMode.Create), new UTF8Encoding(false));
 
